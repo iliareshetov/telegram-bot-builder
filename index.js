@@ -1,7 +1,6 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const TOKEN = process.env.BOT_TOKEN;
-const bot;
 
 if (process.env.NODE_ENV === 'development') {
   console.log('Running in development mode');
