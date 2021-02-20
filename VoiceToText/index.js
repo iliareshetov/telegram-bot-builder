@@ -1,10 +1,29 @@
-const vk = require('api.vk.com')
+require('dotenv').config();
+const TelegramBot = require('node-telegram-bot-api');
+const token = process.env.BOT_TOKEN;
+
+// Create a bot that uses 'polling' to fetch new updates
+const bot = new TelegramBot(token, {polling: true});
+
+// Listen for any kind of message. There are different kinds of
+// messages.
+bot.on('message', (msg) => {
+  const chatId = msg.chat.id;
+
+  console.log(`Recived msg id: ${msg.chat.id}`);
+  console.log(msg);
+
+  // send a message to the chat acknowledging receipt of their message
+  bot.sendMessage(chatId, 'Received your message');
+});
+
+// const vk = require('api.vk.com')
 const request = require('request-promise')
-const Bot = require('node-vk-bot-api')
+const Bot = require('node-telegram-bot-api')
 
 const asr = require('./asr')
 const assistent = require('./assistent')
-const token = require('./token');
+// const token = require('./token');
 
 // оборачиваем в промис старенький модуль для работы с api
 const api = (method, options) => {
