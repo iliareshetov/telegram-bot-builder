@@ -1,14 +1,15 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const TOKEN = process.env.BOT_TOKEN;
+let options;
 
 if (process.env.NODE_ENV === 'development') {
   console.log('Running in development mode');
-  const options = {
+  options = {
     polling: true
   };
 } else {
-  const options = {
+  options = {
     webHook: {
       // Port to which you should bind is assigned to $PORT variable
       // See: https://devcenter.heroku.com/articles/dynos#local-environment-variables
