@@ -8,7 +8,10 @@
     "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "telegram-bot",
+    "heroku"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -17,5 +20,12 @@
   },
   "devDependencies": {
     "nodemon": "^2.0.7"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iliareshetov/telegram-bot"
+  },
+  "engines": {
+    "node": "14.x"
   }
 }
