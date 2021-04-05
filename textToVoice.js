@@ -43,8 +43,8 @@ bot.on('message', (msg) => {
   console.log(msg);
 
   // send a message to the chat acknowledging receipt of their message
-  bot.sendMessage(chatId, msg.text);
-  // bot.sendVoice(chatId, 'octocat.ogg')
+  // bot.sendMessage(chatId, msg.text);
+  bot.sendVoice(chatId, 'octocat.ogg')
 
 const api_key = 't1.9euelZqLzp7JlZPHmo-eyMzKkJ6Xze3rnpWazMfPj4rJyceNlpWdkpDKyZnl9PdHUxZ--e8_Bw683fT3BwIUfvnvPwcOvA.ToaBZFTbJjnvHO62LnzxLjplhdqZGoahnmdFOkDy4HJg0_KhB6J8D-k_f0fRjShP5SwhnWbBA0VZ4rZBGxEHBA';
 
@@ -62,18 +62,18 @@ params.append('folderId', 'b1g2ft32qkv20gucaq7v');
 params.append('speed', '1.0');
 params.append('format', 'oggopus');
 
-fetch('https://stt.api.cloud.yandex.net/speech/v1/stt:recognize', {
+fetch('https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize', {
         method: 'post',        
         body: params,
         headers: { 
             'Authorization': 'Bearer ' + api_key,
         },
     })
-    // .then(res => {
-    //     console.log(res);
-    //     // return res.json();
-    //     const dest = fs.createWriteStream('./octocat.ogg');
-    //     res.body.pipe(dest);
-    // })
+    .then(res => {
+        console.log(res);
+        // return res.json();
+        const dest = fs.createWriteStream('./octocat.ogg');
+        res.body.pipe(dest);
+    })
     .catch(err => console.error(err));
   });
