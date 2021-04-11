@@ -1,7 +1,10 @@
+const { synthesize } = require('./yandex/speechkit');
 require('dotenv').config();
-const fetch = require('node-fetch');
+
 const TelegramBot = require('node-telegram-bot-api');
 const TOKEN = process.env.BOT_TOKEN;
+const YA_TOKEN = process.env.IAM_TOKEN;
+const FOLDER_ID = process.env.FOLDER_ID;
 let options;
 
 if (process.env.NODE_ENV === 'development') {
@@ -22,9 +25,8 @@ if (process.env.NODE_ENV === 'development') {
   };
 }
 
-const bot = new TelegramBot(TOKEN, options);
-
 if (process.env.NODE_ENV !== 'development') {
+  console.log('Running in production mode');
   // Heroku routes from port :443 to $PORT
   // Add URL of your app to env variable or enable Dyno Metadata
   // to get this automatically
@@ -35,45 +37,34 @@ if (process.env.NODE_ENV !== 'development') {
   bot.setWebHook(`${url}/bot${TOKEN}`);
 }
 
+const bot = new TelegramBot(TOKEN, options);
 
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
 
-  console.log(`Recived msg id: ${msg.chat.id}`);
+  console.log(`Recived msg id: ${chatId}`);
   console.log(msg);
 
-  // send a message to the chat acknowledging receipt of their message
-  bot.sendMessage(chatId, msg.text);
-  // bot.sendVoice(chatId, 'octocat.ogg')
+  if (msg.text) {
+    console.log("converting text to voice");
+    convertTextToVoice(chatId, msg.text).catch(err => {
+      console.error(err);
+    });
+  }
 
-const api_key = 't1.9euelZqLzp7JlZPHmo-eyMzKkJ6Xze3rnpWazMfPj4rJyceNlpWdkpDKyZnl9PdHUxZ--e8_Bw683fT3BwIUfvnvPwcOvA.ToaBZFTbJjnvHO62LnzxLjplhdqZGoahnmdFOkDy4HJg0_KhB6J8D-k_f0fRjShP5SwhnWbBA0VZ4rZBGxEHBA';
+  if (msg.voice) {
+    console.log("converting voice to text");
+  }
 
-const { URLSearchParams } = require('url');
-const fs = require('fs');
+});
 
-const params = new URLSearchParams();
-// const text = 'я хочу питсу'
+async function convertTextToVoice(chatId, text) {
 
-params.append('text', msg.text);
-params.append('voice', 'zahar');
-params.append('emotion', 'good');
-params.append('lang', 'ru-RU');
-params.append('folderId', 'b1g2ft32qkv20gucaq7v');
-params.append('speed', '1.0');
-params.append('format', 'oggopus');
+  const result = await synthesize(text, YA_TOKEN, FOLDER_ID);
 
-fetch('https://stt.api.cloud.yandex.net/speech/v1/stt:recognize', {
-        method: 'post',        
-        body: params,
-        headers: { 
-            'Authorization': 'Bearer ' + api_key,
-        },
-    })
-    // .then(res => {
-    //     console.log(res);
-    //     // return res.json();
-    //     const dest = fs.createWriteStream('./octocat.ogg');
-    //     res.body.pipe(dest);
-    // })
-    .catch(err => console.error(err));
-  });
+  console.log(`Status: ${result}`);
+
+  bot.sendAudio(chatId, 'speech.ogg');
+
+}
+

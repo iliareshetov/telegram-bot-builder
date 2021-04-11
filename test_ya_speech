@@ -1,0 +1,17 @@
+#!/bin/bash   
+
+echo Starting the script
+
+FOLDER_ID=
+
+IAM_TOKEN=
+
+if curl -X POST \
+     -H "Authorization: Bearer ${IAM_TOKEN}" \
+     --data-urlencode "text=Hello World" \
+     -d "lang=en-US&folderId=${FOLDER_ID}" \
+     "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize" > speech.ogg
+then echo "Request was successful"
+else echo "CURL Failed"
+fi
+
