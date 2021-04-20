@@ -1,8 +1,10 @@
-const { synthesize } = require('./yandex/speechkit');
+const { synthesize, recognize } = require('./yandex/speechkit');
 require('dotenv').config();
+const request = require('request');
+const { createDatabase } = require('./db/todo');
 
 const TelegramBot = require('node-telegram-bot-api');
-const TOKEN = process.env.BOT_TOKEN;
+const BOT_TOKEN = process.env.BOT_TOKEN;
 const YA_TOKEN = process.env.IAM_TOKEN;
 const FOLDER_ID = process.env.FOLDER_ID;
 let options;
@@ -34,37 +36,64 @@ if (process.env.NODE_ENV !== 'development') {
   const url = process.env.APP_URL || 'https://<app-name>.herokuapp.com:443';
   // This informs the Telegram servers of the new webhook.
   // Note: we do not need to pass in the cert, as it already provided
-  bot.setWebHook(`${url}/bot${TOKEN}`);
+  bot.setWebHook(`${url}/bot${BOT_TOKEN}`);
 }
 
-const bot = new TelegramBot(TOKEN, options);
+const bot = new TelegramBot(BOT_TOKEN, options);
+createDatabase();
 
 bot.on('message', (msg) => {
+  const chatId = msg.chat.id;
+
+  if (msg.text) {
+    console.log(`Recived msg id: ${chatId}`);
+    console.log(msg);
+    console.log("converting text to voice");
+    convertTextToVoice(chatId, msg.text).catch(err => {
+      console.error(err);
+      bot.sendMessage(chatId, "Failed to call yandex speech API");
+    });
+  }
+
+
+
+});
+
+bot.on('voice', (msg) => {
   const chatId = msg.chat.id;
 
   console.log(`Recived msg id: ${chatId}`);
   console.log(msg);
 
-  if (msg.text) {
-    console.log("converting text to voice");
-    convertTextToVoice(chatId, msg.text).catch(err => {
+  bot.getFile(msg.voice.file_id).then(data => {
+    convertVoiceToText(chatId, data).catch(err => {
       console.error(err);
+      bot.sendMessage(chatId, "Failed to call process voice msg");
     });
-  }
-
-  if (msg.voice) {
-    console.log("converting voice to text");
-  }
+  }).catch(err => {
+    console.error(err);
+    bot.sendMessage(chatId, "Failed to call process voice msg");
+  });
 
 });
 
+bot.onText(/\/start/, (msg) => {
+  bot.sendMessage(msg.chat.id, `Welcome ${msg.chat.first_name}`);
+});
+
 async function convertTextToVoice(chatId, text) {
-
-  const result = await synthesize(text, YA_TOKEN, FOLDER_ID);
-
-  console.log(`Status: ${result}`);
-
+  await synthesize(text, YA_TOKEN, FOLDER_ID);
   bot.sendAudio(chatId, 'speech.ogg');
+}
 
+async function convertVoiceToText(chatId, data) {
+  try {
+    let uri = `https://api.telegram.org/file/bot${BOT_TOKEN}/${data.file_path}`;
+    voiceMessage = await request.get({ uri, encoding: null });
+    text = await recognize(voiceMessage, YA_TOKEN, FOLDER_ID);
+    bot.sendMessage(chatId, text);
+  } catch (e) {
+    console.error(e);
+  }
 }
 
