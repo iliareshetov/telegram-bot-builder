@@ -1,13 +1,14 @@
-const { synthesize, recognize } = require('./yandex/speechkit');
 require('dotenv').config();
-const request = require('request');
-const { createDatabase } = require('./db/todo');
-
+const axios = require('axios').default;
 const TelegramBot = require('node-telegram-bot-api');
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const YA_TOKEN = process.env.IAM_TOKEN;
 const FOLDER_ID = process.env.FOLDER_ID;
+const YANDEX_OAUTH_TOKEN = process.env.YANDEX_OAUTH_TOKEN;
+const { URLSearchParams } = require('url');
+const fs = require('fs');
+const pool = require("./db")
 let options;
+let iam;
 
 if (process.env.NODE_ENV === 'development') {
   console.log('Running in development mode');
@@ -39,61 +40,198 @@ if (process.env.NODE_ENV !== 'development') {
   bot.setWebHook(`${url}/bot${BOT_TOKEN}`);
 }
 
+// _ _  _ _ ___ _ ____ _    _ ___  ____ ___ _ ____ _  _ 
+// | |\ | |  |  | |__| |    |   /  |__|  |  | |  | |\ | 
+// | | \| |  |  | |  | |___ |  /__ |  |  |  | |__| | \| 
+
+initDb();
+generateIAMtoken();
+setInterval(isTokenValid, 360000);
 const bot = new TelegramBot(BOT_TOKEN, options);
-createDatabase();
+
+
+// ___ ____ _    ____ ____ ____ ____ _  _    ___  ____ ___    _    _ ____ ___ ____ _  _ ____ ____ ____ 
+//  |  |___ |    |___ | __ |__/ |__| |\/|    |__] |  |  |     |    | [__   |  |___ |\ | |___ |__/ [__  
+//  |  |___ |___ |___ |__] |  \ |  | |  |    |__] |__|  |     |___ | ___]  |  |___ | \| |___ |  \ ___] 
 
 bot.on('message', (msg) => {
-  const chatId = msg.chat.id;
+  console.log('Recived msg id: ', msg);
 
-  if (msg.text) {
-    console.log(`Recived msg id: ${chatId}`);
-    console.log(msg);
-    console.log("converting text to voice");
-    convertTextToVoice(chatId, msg.text).catch(err => {
-      console.error(err);
-      bot.sendMessage(chatId, "Failed to call yandex speech API");
-    });
+  if (msg.text.toLowerCase().indexOf('start') !== -1) {
+    bot.sendMessage(msg.chat.id, "Hello dear user");
+  } else if (msg.text.toLowerCase().indexOf('listall') !== -1) {
+    listCurrentUserTasks(msg);
+  } else if (msg.text) {
+    convertTextToVoice(msg, msg.text);
+  } else if (msg.voice) {
+    convertVoiceToText(msg, msg.voice.file_id);
   }
-
-
-
 });
 
-bot.on('voice', (msg) => {
-  const chatId = msg.chat.id;
+// _  _ _ ____ ____ ____ _    _    ____ _  _ ____ ____ _  _ ____ 
+// |\/| | [__  |    |___ |    |    |__| |\ | |___ |  | |  | [__  
+// |  | | ___] |___ |___ |___ |___ |  | | \| |___ |__| |__| ___] 
 
-  console.log(`Recived msg id: ${chatId}`);
-  console.log(msg);
+async function convertTextToVoice(msg, text) {
 
-  bot.getFile(msg.voice.file_id).then(data => {
-    convertVoiceToText(chatId, data).catch(err => {
-      console.error(err);
-      bot.sendMessage(chatId, "Failed to call process voice msg");
-    });
-  }).catch(err => {
-    console.error(err);
-    bot.sendMessage(chatId, "Failed to call process voice msg");
-  });
+  if (iam) {
 
-});
+    try {
 
-bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, `Welcome ${msg.chat.first_name}`);
-});
+      const start = Date.now();
+      const params = new URLSearchParams();
 
-async function convertTextToVoice(chatId, text) {
-  await synthesize(text, YA_TOKEN, FOLDER_ID);
-  bot.sendAudio(chatId, 'speech.ogg');
+      params.append('text', text);
+      params.append('emotion', 'good');
+      params.append('lang', 'en-US');
+      params.append('folderId', FOLDER_ID);
+
+      const { data, config } = await axios.post('https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize',
+        params.toString(),
+        {
+          headers: {
+            'Authorization': `Bearer ${iam.iamToken}`,
+          },
+          responseType: 'stream',
+        }
+      );
+
+      console.log('INFO req config: ', config);
+
+      const duration = Date.now() - start;
+      console.log(`INFO: executed convertVoiceToText() in ${duration} milliseconds`);
+
+      const writeStream = fs.createWriteStream('./text_to_voice.ogg');
+      data.pipe(writeStream);
+
+      writeStream.on('finish', function () {
+        console.log('INFO: Downloaded speech.ogg from yandex');
+        bot.sendAudio(msg.chat.id, 'text_to_voice.ogg');
+      });
+
+    } catch (error) {
+      console.error(error);
+      bot.sendMessage(msg.chat.id, 'Something went wrong, please try again later.');
+    }
+
+  } else {
+    bot.sendMessage(msg.chat.id, 'Have no valid NLP service token, please try again later.');
+  }
 }
 
-async function convertVoiceToText(chatId, data) {
+async function convertVoiceToText(msg, file_id) {
+  if (iam) {
+
+    try {
+
+      const start = Date.now();
+
+      const fileInfo = await bot.getFile(file_id);
+      console.log('api telegram getFile response', fileInfo);
+
+      const telegramResponse = await axios.get(`https://api.telegram.org/file/bot${BOT_TOKEN}/${fileInfo.file_path}`,
+        {
+          responseType: 'stream',
+        });
+
+      const yandexResponse = await axios.post(`https://stt.api.cloud.yandex.net/speech/v1/stt:recognize?topic=general&lang=en-US&folderId=${FOLDER_ID}`,
+        telegramResponse.data,
+        {
+          headers: {
+            'Authorization': `Bearer ${iam.iamToken}`,
+            'Content-Type': 'multipart/form-data'
+          },
+        });
+
+      console.log('yandexResponse ', yandexResponse.data);
+
+      result = yandexResponse.data.result;
+
+      const duration = Date.now() - start;
+      console.log(`executed convertVoiceToText() in ${duration} milliseconds`);
+
+      if (isNotTaskRelatedMsg(result.toLowerCase(), msg)) bot.sendMessage(msg.chat.id, result ? result : 'recived empty msg');
+
+    } catch (error) {
+      console.error(error);
+      bot.sendMessage(msg.chat.id, 'Something went wrong, please try again later.');
+    }
+
+  } else {
+    bot.sendMessage(msg.chat.id, 'Have no valid NLP service token, please try again later.');
+  }
+}
+
+function isTokenValid() {
+  if (!iam) {
+    generateIAMtoken();
+  } else {
+    const currentTime = new Date(Date.now()).toISOString();
+    let diff = new Date(new Date(iam.expiresAt) - new Date(currentTime)).getHours();
+
+    console.log('iam: ', iam)
+    console.log(`Cheking if token is valid, currentTime: ${currentTime} iam.expiresAt: ${iam.expiresAt}, diff: ${diff}`);
+
+    if (diff < 3) {
+      // NOTE: The IAM token lifetime doesn't exceed 12 hours
+      // Request new token every ~ 10 hours
+      iam = generateIAMtoken();
+    }
+  }
+}
+
+async function generateIAMtoken() {
   try {
-    let uri = `https://api.telegram.org/file/bot${BOT_TOKEN}/${data.file_path}`;
-    voiceMessage = await request.get({ uri, encoding: null });
-    text = await recognize(voiceMessage, YA_TOKEN, FOLDER_ID);
-    bot.sendMessage(chatId, text);
-  } catch (e) {
-    console.error(e);
+
+    const { data } = await axios.post('https://iam.api.cloud.yandex.net/iam/v1/tokens',
+      {
+        'yandexPassportOauthToken': YANDEX_OAUTH_TOKEN,
+      });
+
+    iam = data;
+  } catch (error) {
+    console.error(error);
   }
 }
 
+function isNotTaskRelatedMsg(text, msg) {
+
+  const regexNew = /new/;
+  const regexUpdate = /update/;
+  const regexDelete = /delete/;
+
+  if (null !== text.match(regexNew)) {
+    console.log(text.match(regexNew));
+    let formatedText = text.replace('create', '').replace('new', '').replace('task', '');
+    createNew(msg, formatedText);
+    return false;
+  } else if (null !== text.match(regexUpdate)) {
+    console.log(text.match(regexUpdate));
+    return false;
+  } else if (null !== text.match(regexDelete)) {
+    console.log(text.match(regexDelete));
+    return false;
+  } else {
+    return true;
+  }
+}
+
+async function initDb() {
+  try {
+    await pool.query('CREATE SCHEMA IF NOT EXISTS nlp_todo_bot');
+    await pool.query('CREATE TABLE IF NOT EXISTS nlp_todo_bot.todo(taskid INT GENERATED BY DEFAULT AS IDENTITY, userid BIGINT NOT NULL, username text NOT NULL, todotask text NOT NULL)');
+    console.log('INFO: successfully initialized database')
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+async function listCurrentUserTasks(msg) {
+  const res = await pool.getAllUserTasks(msg.from.id);
+  bot.sendMessage(msg.chat.id, res ? res : 'Something went wrong');
+}
+
+async function createNew(msg, formatedText) {
+  const res = await pool.createNewTask(msg.from.id, msg.from.username, formatedText.trim());
+  bot.sendMessage(msg.chat.id, res ? res : 'Something went wrong');
+}

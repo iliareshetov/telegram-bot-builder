@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "NODE_ENV=development nodemon index.js",
+    "dev_debug": "NODE_ENV=development NODE_DEBUG=http nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -15,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^0.21.1",
     "dotenv": "^8.2.0",
     "node-fetch": "^2.6.1",
     "node-libcurl": "^2.3.0",
