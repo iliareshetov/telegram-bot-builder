@@ -57,14 +57,14 @@ const bot = new TelegramBot(BOT_TOKEN, options);
 bot.on('message', (msg) => {
   console.log('Recived msg id: ', msg);
 
-  if (msg.text.toLowerCase().indexOf('start') !== -1) {
+  if (msg.voice) {
+    convertVoiceToText(msg, msg.voice.file_id);
+  } else if (msg.text.indexOf('start') !== -1) {
     bot.sendMessage(msg.chat.id, "Hello dear user");
-  } else if (msg.text.toLowerCase().indexOf('listall') !== -1) {
+  } else if (msg.text === '/listall') {
     listCurrentUserTasks(msg);
   } else if (msg.text) {
     convertTextToVoice(msg, msg.text);
-  } else if (msg.voice) {
-    convertVoiceToText(msg, msg.voice.file_id);
   }
 });
 
@@ -228,7 +228,7 @@ async function initDb() {
 
 async function listCurrentUserTasks(msg) {
   const res = await pool.getAllUserTasks(msg.from.id);
-  bot.sendMessage(msg.chat.id, res ? res : 'Something went wrong');
+  bot.sendMessage(msg.chat.id, res ? res : 'You have created no task yet');
 }
 
 async function createNew(msg, formatedText) {
